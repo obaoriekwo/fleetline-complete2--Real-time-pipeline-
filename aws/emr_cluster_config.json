@@ -1,0 +1,60 @@
+{
+  "Name": "rideshare-streaming-pipeline",
+  "ReleaseLabel": "emr-7.1.0",
+  "Applications": [{ "Name": "Spark" }],
+  "Instances": {
+    "InstanceGroups": [
+      {
+        "Name": "Primary",
+        "InstanceRole": "MASTER",
+        "InstanceType": "m5.xlarge",
+        "InstanceCount": 1,
+        "Market": "ON_DEMAND"
+      },
+      {
+        "Name": "Core",
+        "InstanceRole": "CORE",
+        "InstanceType": "m5.xlarge",
+        "InstanceCount": 2,
+        "Market": "ON_DEMAND"
+      },
+      {
+        "Name": "Task-Spot",
+        "InstanceRole": "TASK",
+        "InstanceType": "m5.xlarge",
+        "InstanceCount": 2,
+        "Market": "SPOT",
+        "BidPrice": "0.10"
+      }
+    ],
+    "KeepJobFlowAliveWhenNoSteps": true,
+    "TerminationProtected": false
+  },
+  "BootstrapActions": [
+    {
+      "Name": "install-python-deps",
+      "ScriptBootstrapAction": {
+        "Path": "s3://your-rideshare-data-lake/bootstrap/bootstrap.sh"
+      }
+    }
+  ],
+  "Steps": [
+    {
+      "Name": "rideshare-streaming-job",
+      "ActionOnFailure": "CONTINUE",
+      "HadoopJarStep": {
+        "Jar": "command-runner.jar",
+        "Args": [
+          "spark-submit",
+          "--deploy-mode", "cluster",
+          "--packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1",
+          "s3://your-rideshare-data-lake/code/streaming_job.py"
+        ]
+      }
+    }
+  ],
+  "ServiceRole": "EMR_DefaultRole",
+  "JobFlowRole": "EMR_EC2_DefaultRole",
+  "VisibleToAllUsers": true,
+  "_comment_on_failover": "Auto-terminate is disabled (KeepJobFlowAliveWhenNoSteps) so the cluster survives step failures. Pair with EMR managed scaling and CloudWatch alarms on YARN memory/step failure to auto-replace unhealthy task nodes and hit the 99.9% uptime target."
+}

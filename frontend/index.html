@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fleetline · Live Network Operations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <span class="brand-mark">◆</span>
+      <div class="brand-text">
+        <h1>Fleetline</h1>
+        <span class="sub">LIVE NETWORK OPERATIONS</span>
+      </div>
+    </div>
+    <div class="status-cluster">
+      <div class="live-pill"><span class="dot demo" id="modeDot"></span><span id="modeLabel">DEMO STREAM</span></div>
+      <button id="settingsBtn">Connect API</button>
+    </div>
+  </header>
+
+  <div class="panel settings" id="settingsPanel">
+    <input type="text" id="apiUrl" placeholder="http://localhost:8000  (FastAPI base URL)">
+    <button class="primary" id="connectBtn">Connect</button>
+    <button id="disconnectBtn">Use demo data</button>
+    <span class="hint">Reads from /api/summary, /api/timeseries, /api/by-city, /api/status-breakdown, /api/recent-events on your rideshare Postgres DB</span>
+  </div>
+
+  <!-- Signature element: animated city-grid route map -->
+  <div class="panel map-panel">
+    <div class="map-head">
+      <p class="panel-title" style="margin-bottom:0">Live route grid</p>
+      <span class="hint">glowing dots = active trips · pulsing rings = new requests</span>
+    </div>
+    <canvas id="routeMap"></canvas>
+  </div>
+
+  <div class="stat-grid">
+    <div class="panel stat-card">
+      <span class="stat-label">Trips · 24h</span>
+      <span class="stat-value" id="statTrips24h">0</span>
+    </div>
+    <div class="panel stat-card">
+      <span class="stat-label">Active now</span>
+      <span class="stat-value accent-cyan" id="statActive">0</span>
+    </div>
+    <div class="panel stat-card">
+      <span class="stat-label">Completed · 24h</span>
+      <span class="stat-value accent-green" id="statCompleted">0</span>
+    </div>
+    <div class="panel stat-card">
+      <span class="stat-label">Cancelled · 24h</span>
+      <span class="stat-value accent-red" id="statCancelled">0</span>
+    </div>
+    <div class="panel stat-card">
+      <span class="stat-label">Avg. fare</span>
+      <span class="stat-value" id="statFare">–</span>
+    </div>
+    <div class="panel stat-card">
+      <span class="stat-label">Uptime · 24h</span>
+      <span class="stat-value accent-green" id="statUptime">99.9%</span>
+    </div>
+  </div>
+
+  <div class="chart-row">
+    <div class="panel chart-card wide">
+      <p class="panel-title">Events per minute</p>
+      <canvas id="trendChart"></canvas>
+    </div>
+    <div class="panel chart-card">
+      <p class="panel-title">Trip status</p>
+      <div class="donut-wrap">
+        <svg id="statusDonut" viewBox="0 0 130 130" preserveAspectRatio="xMidYMid meet">
+          <circle cx="65" cy="65" r="52" fill="none" stroke="var(--border)" stroke-width="16"/>
+        </svg>
+        <div class="donut-legend" id="donutLegend"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-row">
+    <div class="panel chart-card wide">
+      <p class="panel-title">Trips by city · 24h</p>
+      <div class="hbar-list" id="cityBars"></div>
+    </div>
+    <div class="panel chart-card">
+      <p class="panel-title">Pipeline health</p>
+      <div class="health-list" id="healthList"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <p class="panel-title">Live event feed</p>
+    <div class="feed" id="feed"></div>
+  </div>
+
+  <footer>fleetline dashboard · point it at your FastAPI read layer or leave it on demo stream</footer>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

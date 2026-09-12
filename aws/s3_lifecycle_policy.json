@@ -1,0 +1,20 @@
+{
+  "Rules": [
+    {
+      "ID": "transition-raw-events-to-cheaper-storage",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "raw/trip-events/" },
+      "Transitions": [
+        { "Days": 30, "StorageClass": "STANDARD_IA" },
+        { "Days": 90, "StorageClass": "GLACIER" }
+      ]
+    },
+    {
+      "ID": "expire-old-checkpoints",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "checkpoints/" },
+      "Expiration": { "Days": 14 },
+      "_comment": "Spark checkpoint metadata older than this is safe to drop once past any realistic recovery window"
+    }
+  ]
+}
