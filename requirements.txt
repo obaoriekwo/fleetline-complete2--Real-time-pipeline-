@@ -1,0 +1,26 @@
+# Fleetline — Python dependencies
+#
+# Grouped by which part of the pipeline needs them. Versions for
+# psycopg2-binary / sqlalchemy / boto3 match aws/bootstrap.sh's pins
+# exactly, so local dev and the EMR cluster nodes install the same
+# versions of the shared db/connection.py dependencies.
+
+# --- API (api/main.py) ---
+fastapi==0.141.1
+uvicorn[standard]==0.52.1
+
+# --- Shared: db/connection.py (used by both the API and the Spark job) ---
+sqlalchemy==2.0.30
+psycopg2-binary==2.9.9
+
+# --- Spark job (spark/streaming_job.py) ---
+# pyspark itself is provided by the EMR runtime when running via
+# `spark-submit` on the cluster - only needed here for LOCAL testing
+# (README's "Running it locally" step 5). Needs Java 8/11 installed
+# separately; pip alone doesn't provide that.
+pyspark==3.5.1
+boto3==1.34.113
+
+# --- Event producer (producer/event_producer.py) ---
+confluent-kafka==2.4.0
+Faker==26.0.0

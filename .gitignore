@@ -1,0 +1,29 @@
+# Environment / secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Spark
+spark-warehouse/
+metastore_db/
+derby.log
+*.checkpoint/
+
+# Local data / logs
+*.log
+pgdata/
+
+# Docker
+.dockerignore
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
