@@ -8,8 +8,10 @@ Run with:
     uvicorn api.main:app --reload --port 8000
 """
 
+import logging
 import os
 import sys
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, HTTPException
@@ -18,8 +20,22 @@ from sqlalchemy import text
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from db.connection import get_engine  # noqa: E402
+sys.path.append(os.path.dirname(__file__))
+import simulator  # noqa: E402
 
-app = FastAPI(title="Rideshare Pipeline Dashboard API")
+logging.basicConfig(level=logging.INFO)
+
+engine = get_engine()
+
+
+@asynccontextmanager
+async def lifespan(app):
+    # Hosted demo only: SIMULATOR_ENABLED=true stands in for Kafka + Spark.
+    simulator.start(engine)
+    yield
+
+
+app = FastAPI(title="Rideshare Pipeline Dashboard API", lifespan=lifespan)
 
 # Dashboard is a static file opened via a local dev server / different origin
 app.add_middleware(
@@ -29,7 +45,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-engine = get_engine()
+@app.get("/")
+def root():
+    return {"service": "fleetline-api", "docs": "/docs", "health": "/health"}
 
 
 @app.get("/health")
@@ -72,6 +90,7 @@ def timeseries(minutes: int = 60):
                SUM(trips_cancelled) AS trips_cancelled
         FROM metrics_minute
         WHERE window_start >= NOW() - (:minutes || ' minutes')::interval
+          AND window_start < date_trunc('minute', NOW())  -- complete minutes only
         GROUP BY window_start
         ORDER BY window_start ASC
     """)

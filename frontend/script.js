@@ -11,9 +11,17 @@
     cancelled: "#FF5C5C"
   };
 
+  // Hosted API the dashboard connects to on load. Override with ?api=<url>,
+  // or open with ?demo=1 to stay on the simulated stream.
+  const DEFAULT_API = "https://fleetline-api.onrender.com";
+
   let mode = "demo"; // "demo" | "live"
   let apiBase = "";
   let pollTimer = null;
+  let demoTimer = null;     // demo ticks while the live API is waking up
+  let liveConnected = false;
+  let pollInFlight = false;
+  let seenEvents = new Set();
 
   let trendSeries = []; // { t, events }
   let statusCounts = { requested: 0, accepted: 0, in_progress: 0, completed: 0, cancelled: 0 };
@@ -44,21 +52,32 @@
   connectBtn.addEventListener('click', () => {
     const val = apiUrlInput.value.trim();
     if (!val) return;
-    apiBase = val.replace(/\/$/, "");
-    mode = "live";
-    modeDot.classList.remove('demo');
-    modeLabel.textContent = "LIVE API";
     settingsPanel.classList.remove('open');
-    restartPolling();
+    goLive(val);
   });
 
   disconnectBtn.addEventListener('click', () => {
     mode = "demo";
-    modeDot.classList.add('demo');
-    modeLabel.textContent = "DEMO STREAM";
+    liveConnected = false;
+    setStatus("DEMO STREAM", true);
     settingsPanel.classList.remove('open');
     restartPolling();
   });
+
+  function setStatus(text, isDemo) {
+    modeLabel.textContent = text;
+    modeDot.classList.toggle('demo', isDemo);
+  }
+
+  function goLive(url) {
+    apiBase = url.replace(/\/$/, "");
+    apiUrlInput.value = apiBase;
+    mode = "live";
+    liveConnected = false;
+    seenEvents = new Set();
+    setStatus("CONNECTING…", true);
+    restartPolling();
+  }
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -415,12 +434,15 @@
   // Live API polling
   // =====================================================
   async function fetchJson(path) {
-    const res = await fetch(apiBase + path);
+    // Render's free tier can take ~50s to wake up, so allow a generous timeout.
+    const res = await fetch(apiBase + path, { signal: AbortSignal.timeout(70000) });
     if (!res.ok) throw new Error('bad response: ' + path);
     return res.json();
   }
 
   async function pollLive() {
+    if (pollInFlight) return;
+    pollInFlight = true;
     try {
       const [summary, series, cities, statuses, events, health] = await Promise.all([
         fetchJson('/api/summary'),
@@ -445,18 +467,54 @@
       renderCityBars(cityMap);
 
       feedEl.innerHTML = '';
-      events.forEach(e => pushFeedItem(e));
+      events.slice().reverse().forEach(e => pushFeedItem(e));
 
       if (health.length) renderHealth(health);
+
+      animateLive(events, summary);
+
+      if (!liveConnected) {
+        liveConnected = true;
+        if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
+        setStatus("LIVE API", false);
+      }
     } catch (e) {
-      console.warn('Live API unreachable, falling back to demo tick:', e.message);
-      tickDemo();
+      console.warn('Live API unreachable:', e.message);
+      if (liveConnected) {
+        setStatus("API OFFLINE · RETRYING", true);
+      } else {
+        setStatus("API WAKING UP · DEMO", true);
+      }
+    } finally {
+      pollInFlight = false;
     }
+  }
+
+  // Drive the route map from live data: a pulse for each newly seen request,
+  // a moving dot for each trip that started, and enough ambient dots to
+  // reflect how many trips are active right now.
+  function animateLive(events, summary) {
+    const rect = mapCanvas.getBoundingClientRect();
+    const firstPoll = seenEvents.size === 0;
+    events.forEach(e => {
+      const key = e.trip_id + ':' + e.status;
+      if (seenEvents.has(key)) return;
+      seenEvents.add(key);
+      if (firstPoll) return;
+      if (e.status === 'requested') spawnPulse(rect);
+      if (e.status === 'in_progress' || e.status === 'accepted') spawnTrip(rect);
+    });
+    if (seenEvents.size > 2000) seenEvents = new Set([...seenEvents].slice(-500));
+    const target = Math.min(Number(summary.trips_active) || 0, 25);
+    for (let i = activeTrips.length; i < target; i++) spawnTrip(rect);
   }
 
   function restartPolling() {
     if (pollTimer) clearInterval(pollTimer);
+    if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
     if (mode === 'live') {
+      // Keep the demo animating until the first live response arrives.
+      if (!liveConnected) demoTimer = setInterval(tickDemo, 900);
       pollLive();
       pollTimer = setInterval(pollLive, 4000);
     } else {
@@ -472,5 +530,11 @@
   seedDemoHealth();
   for (let i = 0; i < 15; i++) tickDemo();
   requestAnimationFrame(drawRouteMap);
-  restartPolling();
+
+  const params = new URLSearchParams(location.search);
+  if (params.has('demo')) {
+    restartPolling();
+  } else {
+    goLive(params.get('api') || DEFAULT_API);
+  }
 })();

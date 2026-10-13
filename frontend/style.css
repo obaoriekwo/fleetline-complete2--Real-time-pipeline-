@@ -265,6 +265,7 @@ canvas#trendChart {
   overflow: hidden;
 }
 .hbar-fill {
+  display: block;
   height: 100%;
   background: linear-gradient(90deg, var(--accent), var(--in-progress));
   border-radius: 6px;

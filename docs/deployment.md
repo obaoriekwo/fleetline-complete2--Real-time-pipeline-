@@ -1,33 +1,23 @@
 # Render service configs — Fleetline live demo
 
-Three Render resources total: a Postgres database, a Web Service (API),
+A Neon Postgres database plus two Render resources: a Web Service (API)
 and a Static Site (frontend). Create them in that order, since the API
 needs the database's connection details.
 
 ---
 
-## 1. Postgres (create first)
+## 1. Postgres on Neon (create first)
 
-New → PostgreSQL
+The database runs on [Neon](https://neon.tech) (serverless Postgres, free
+tier) rather than Render, because Render's free databases expire.
 
-- **Name:** `fleetline-db` (or anything)
-- **Database:** `rideshare`
-- **User:** `postgres` (or Render's default — either is fine)
-- **Region:** pick one, then use the same region for the API service
-  below so they can talk over Render's private network
-- **Plan:** Free or Starter — this is a demo, not production load
-
-After it's created, open the database's page and note down:
-- **Internal Database URL** (or the individual host/port/user/password
-  fields — Render shows both)
-
-Then run your schema against it once, from your own machine, using the
-**External Database URL** Render gives you:
+- Create a project in the **same region** as the Render API
+  (AWS Europe Central 1 / Frankfurt here), Postgres 18.
+- Copy the connection string from **Connect** in the Neon dashboard.
+- Create the tables once, from your own machine:
 ```bash
-psql "<external-database-url-from-render>" -f db/schema.sql
+psql "<neon-connection-string>" -f db/schema.sql
 ```
-Optionally load a seed snapshot of `trips` / `metrics_minute` data here
-too, so the live dashboard shows real-looking numbers.
 
 ---
 
@@ -45,16 +35,26 @@ New → Web Service → connect this repo
 - **Instance Type:** Free or Starter
 
 **Environment Variables** (Add Environment Variable, one per row) —
-use the values from the Postgres service's **Internal Database URL**
-fields, matching what `db/connection.py` expects:
+taken from the Neon connection string, matching what `db/connection.py`
+expects:
 
 | Key | Value |
 |---|---|
-| `POSTGRES_HOST` | internal hostname from the Render Postgres page |
+| `POSTGRES_HOST` | the `ep-...neon.tech` host from the Neon connection string |
 | `POSTGRES_PORT` | `5432` |
-| `POSTGRES_DB` | `rideshare` |
-| `POSTGRES_USER` | from the Render Postgres page |
-| `POSTGRES_PASSWORD` | from the Render Postgres page |
+| `POSTGRES_DB` | `neondb` |
+| `POSTGRES_USER` | `neondb_owner` |
+| `POSTGRES_PASSWORD` | from the Neon connection string |
+| `PGSSLMODE` | `require` (Neon only accepts SSL; psycopg2 reads this automatically) |
+| `SIMULATOR_ENABLED` | `true` (see below) |
+
+**Demo simulator:** Kafka and Spark only run locally, so in the hosted
+demo nothing else writes to the database. With `SIMULATOR_ENABLED=true`,
+`api/simulator.py` stands in for them: on startup it backfills the last
+24 hours of simulated trips and per-minute metrics, and while the API is
+awake it moves trips through their lifecycle every 5 seconds, writing the
+same tables the Spark job writes. Rows older than 48 hours are pruned.
+Leave it unset when running the real pipeline locally.
 
 Leave **Build Command** and **Start Command** blank — since this is a
 Docker environment, Render just runs the Dockerfile's own `CMD`
@@ -96,10 +96,12 @@ New → Static Site → connect this repo
 
 Click **Create Static Site**.
 
-Once both are live, open the frontend's URL, click **"Connect API"**
-in the dashboard, and enter the API's `.onrender.com` URL (same as
-your local `http://localhost:8000` step, just pointing at the deployed
-one). If it doesn't connect, check the CORS setting above first.
+The dashboard connects to `https://fleetline-api.onrender.com` on load
+(`DEFAULT_API` in `frontend/script.js`). While the free API wakes up
+(up to ~50 seconds) it shows the demo stream and switches to live data
+on the first successful response. Add `?api=<url>` to the dashboard URL
+to point it at another API (e.g. `?api=http://localhost:8000`), or
+`?demo=1` to stay on the demo stream.
 
 ---
 
@@ -109,7 +111,8 @@ one). If it doesn't connect, check the CORS setting above first.
 |---|---|
 | Frontend | Render Static Site |
 | API | Render Web Service (Docker) |
-| Postgres | Render managed Postgres |
+| Postgres | Neon (serverless Postgres, Frankfurt) |
+| Live trip data | `api/simulator.py` inside the API (hosted demo only) |
 | Kafka + Zookeeper | Local only (`docker-compose.yml`) |
 | Spark Streaming job | Local only (`spark-submit`) |
 | EMR / S3 / MSK | Documented, not deployed (see `aws/`) |
